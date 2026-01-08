@@ -15,7 +15,7 @@ st.set_page_config(page_title="Input | Fake News Detection", layout="wide")
 ASSETS_DIR = "assets"
 BG_PATH = os.path.join(ASSETS_DIR, "bg_input.jpg")
 
-MODEL_DIR = os.path.join("model", "roberta_fake_news_model")  # change if your folder name differs
+MODEL_DIR = os.path.join("model")  # change if your folder name differs
 MODEL_NAME_DISPLAY = "roberta-base"
 MAX_LEN = 256
 
