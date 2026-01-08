@@ -1,71 +1,132 @@
 # pages/2_Input.py
-# Page 2: Input page (collect text + run prediction)
-
+import os
 import base64
 import streamlit as st
+import numpy as np
 import torch
+
 from transformers import AutoTokenizer, AutoModelForSequenceClassification
 
-st.set_page_config(page_title="Input", page_icon="✍️", layout="wide")
+# -----------------------------
+# Page Config
+# -----------------------------
+st.set_page_config(page_title="Input | Fake News Detection", layout="wide")
 
-def set_background(image_path: str):
-    try:
-        with open(image_path, "rb") as f:
-            encoded = base64.b64encode(f.read()).decode()
+ASSETS_DIR = "assets"
+BG_PATH = os.path.join(ASSETS_DIR, "bg_input.jpg")
+
+MODEL_DIR = os.path.join("model", "roberta_fake_news_model")  # change if your folder name differs
+MODEL_NAME_DISPLAY = "roberta-base"
+MAX_LEN = 256
+
+DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+# -----------------------------
+# Styling Helpers
+# -----------------------------
+def set_bg(image_path: str) -> None:
+    if not os.path.exists(image_path):
         st.markdown(
-            f"""
+            """
             <style>
-              .stApp {{
-                background: url("data:image/png;base64,{encoded}") no-repeat center center fixed;
-                background-size: cover;
-              }}
+            .stApp {
+                background: radial-gradient(1100px 500px at 20% 0%, rgba(34,197,94,0.16), transparent 60%),
+                            radial-gradient(900px 500px at 80% 10%, rgba(56,189,248,0.16), transparent 60%),
+                            #0b1220;
+            }
             </style>
             """,
             unsafe_allow_html=True,
         )
-    except FileNotFoundError:
-        pass
+        return
 
-set_background("assets/bg_input.png")
+    with open(image_path, "rb") as f:
+        b64 = base64.b64encode(f.read()).decode()
 
-st.markdown(
-    """
-    <style>
-      .input-card {
-        background: rgba(255,255,255,0.88);
-        border: 1px solid rgba(0,0,0,0.08);
-        border-radius: 18px;
-        padding: 26px 26px;
-        box-shadow: 0 10px 30px rgba(0,0,0,0.07);
-      }
-      .muted { color: rgba(0,0,0,0.65); }
-    </style>
-    """,
-    unsafe_allow_html=True,
-)
+    st.markdown(
+        f"""
+        <style>
+        .stApp {{
+            background:
+              linear-gradient(rgba(0,0,0,0.66), rgba(0,0,0,0.66)),
+              url("data:image/jpg;base64,{b64}");
+            background-size: cover;
+            background-position: center;
+            background-attachment: fixed;
+        }}
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def inject_css() -> None:
+    st.markdown(
+        """
+        <style>
+        .block-container { padding-top: 1.4rem; }
+
+        .glass-card {
+            background: rgba(10, 18, 32, 0.74);
+            border: 1px solid rgba(255,255,255,0.16);
+            box-shadow: 0 14px 46px rgba(0,0,0,0.50);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border-radius: 18px;
+            padding: 26px;
+            color: #F8FAFC;
+        }
+        .title {
+            font-size: 38px;
+            font-weight: 850;
+            margin: 0 0 10px 0;
+            color: #F8FAFC;
+            text-shadow: 0 2px 14px rgba(0,0,0,0.55);
+        }
+        .subtitle {
+            font-size: 15px;
+            line-height: 1.75;
+            color: rgba(248,250,252,0.92);
+        }
+        .small-note {
+            font-size: 13px;
+            color: rgba(248,250,252,0.78);
+            line-height: 1.6;
+        }
+        .btn-row {
+            display:flex;
+            gap: 10px;
+            margin-top: 10px;
+            flex-wrap: wrap;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+set_bg(BG_PATH)
+inject_css()
 
 # -----------------------------
-# Model loading (cached)
+# Model Loader (cached)
 # -----------------------------
-MODEL_DIR = "model/roberta_fake_news_model"  # put your saved model folder here
-MAX_LEN = 256
-
 @st.cache_resource
-def load_model():
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    tokenizer = AutoTokenizer.from_pretrained(MODEL_DIR, use_fast=True)
-    model = AutoModelForSequenceClassification.from_pretrained(MODEL_DIR)
-    model.to(device)
+def load_model_and_tokenizer(model_dir: str):
+    if not os.path.exists(model_dir):
+        raise FileNotFoundError(
+            f"Model folder not found: '{model_dir}'. "
+            f"Place your saved RoBERTa model inside: {model_dir}"
+        )
+    tokenizer = AutoTokenizer.from_pretrained(model_dir, use_fast=True)
+    model = AutoModelForSequenceClassification.from_pretrained(model_dir).to(DEVICE)
     model.eval()
-    return tokenizer, model, device
+    return tokenizer, model
 
-def predict(text: str):
-    """
-    Returns:
-      pred_label: int (0 or 1)
-      probs: [p_fake, p_real]
-    """
-    tokenizer, model, device = load_model()
+
+@torch.no_grad()
+def predict_text(text: str):
+    tokenizer, model = load_model_and_tokenizer(MODEL_DIR)
 
     text = "" if text is None else str(text).strip()
     enc = tokenizer(
@@ -73,79 +134,123 @@ def predict(text: str):
         padding=True,
         truncation=True,
         max_length=MAX_LEN,
-        return_tensors="pt",
+        return_tensors="pt"
     )
-    enc = {k: v.to(device) for k, v in enc.items()}
+    enc = {k: v.to(DEVICE) for k, v in enc.items()}
 
-    with torch.no_grad():
-        logits = model(**enc).logits
-        probs = torch.softmax(logits, dim=1).squeeze(0).detach().cpu().tolist()
+    logits = model(**enc).logits
+    probs = torch.softmax(logits, dim=1)[0].detach().cpu().numpy()
 
-    pred_label = int(torch.argmax(torch.tensor(probs)).item())
-    return pred_label, probs
+    # Class index: 0=FAKE, 1=REAL
+    pred = int(np.argmax(probs))
+    return pred, float(probs[0]), float(probs[1])
 
-# Session state init
-if "input_text" not in st.session_state:
-    st.session_state["input_text"] = ""
-if "prediction" not in st.session_state:
-    st.session_state["prediction"] = None  # will store dict
 
-st.markdown('<div class="input-card">', unsafe_allow_html=True)
-st.title("Input")
-st.write("Paste a news headline or article text and click **Predict**.")
+# -----------------------------
+# UI
+# -----------------------------
+col_left, col_right = st.columns([1.45, 1])
 
-example_text = (
-    "WASHINGTON (Reuters) - The U.S. House of Representatives voted on a new bill today "
-    "after lawmakers debated policy changes and economic impacts."
-)
+with col_left:
+    st.markdown('<div class="glass-card">', unsafe_allow_html=True)
+    st.markdown('<div class="title">Input Text</div>', unsafe_allow_html=True)
+    st.markdown(
+        """
+        <div class="subtitle">
+        Paste a headline or full news content. Then click <b>Predict</b>.
+        </div>
+        <div class="small-note">
+        Label mapping: FAKE → 0, REAL → 1. Model: RoBERTa-base.
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
-# Input area
-text = st.text_area(
-    "News text",
-    value=st.session_state["input_text"],
-    height=220,
-    placeholder="Paste your news headline/article here...",
-)
+    # Pre-fill from session state
+    default_text = st.session_state.get("input_text", "")
 
-col_a, col_b, col_c = st.columns([1, 1, 2])
+    text = st.text_area(
+        "News text",
+        value=default_text,
+        height=260,
+        placeholder="Paste news headline or article here..."
+    )
 
-with col_a:
-    if st.button("Use Example"):
-        st.session_state["input_text"] = example_text
+    # Simple counters
+    words = len(text.split())
+    chars = len(text)
+    st.caption(f"Length: {words} words | {chars} characters")
+
+    b1, b2, b3 = st.columns([1, 1, 1])
+
+    with b1:
+        predict_clicked = st.button("Predict", type="primary", use_container_width=True)
+
+    with b2:
+        example_clicked = st.button("Use Example", use_container_width=True)
+
+    with b3:
+        clear_clicked = st.button("Clear", use_container_width=True)
+
+    if example_clicked:
+        example = (
+            "WASHINGTON (Reuters) - The U.S. administration announced new measures on Monday, "
+            "aiming to strengthen policy enforcement and improve transparency, officials said."
+        )
+        st.session_state["input_text"] = example
+        st.session_state["last_error"] = ""
         st.rerun()
 
-with col_b:
-    if st.button("Clear"):
+    if clear_clicked:
         st.session_state["input_text"] = ""
-        st.session_state["prediction"] = None
+        st.session_state["pred_label"] = None
+        st.session_state["probs"] = None
+        st.session_state["last_error"] = ""
         st.rerun()
 
-with col_c:
-    st.markdown('<p class="muted">Label mapping: FAKE = 0, REAL = 1</p>', unsafe_allow_html=True)
+    if predict_clicked:
+        st.session_state["input_text"] = text
+        st.session_state["model_name"] = MODEL_NAME_DISPLAY
+        st.session_state["last_error"] = ""
 
-# Predict action
-st.markdown("---")
-if st.button("Predict", type="primary"):
-    cleaned = "" if text is None else str(text).strip()
+        if len(text.strip()) < 20:
+            st.session_state["last_error"] = "Please enter at least 20 characters for a reliable prediction."
+            st.warning(st.session_state["last_error"])
+        else:
+            with st.spinner("Running RoBERTa inference..."):
+                try:
+                    pred, p_fake, p_real = predict_text(text)
+                    st.session_state["pred_label"] = pred
+                    st.session_state["probs"] = {"FAKE": p_fake, "REAL": p_real}
+                    st.success("Prediction saved. Open the **Result** page from the sidebar.")
+                except Exception as e:
+                    st.session_state["last_error"] = str(e)
+                    st.error("Prediction failed. Please verify model path and dependencies.")
+                    st.code(str(e))
 
-    if len(cleaned) < 20:
-        st.warning("Please enter a longer text (at least ~20 characters) for a more reliable prediction.")
-    else:
-        st.session_state["input_text"] = cleaned
+    if st.session_state.get("last_error"):
+        st.warning(st.session_state["last_error"])
 
-        with st.spinner("Running RoBERTa prediction..."):
-            pred_label, probs = predict(cleaned)
+    st.markdown("</div>", unsafe_allow_html=True)
 
-        st.session_state["prediction"] = {
-            "pred_label": pred_label,
-            "p_fake": float(probs[0]),
-            "p_real": float(probs[1]),
-        }
+with col_right:
+    st.markdown(
+        """
+        <div class="glass-card">
+          <h3 style="margin-top:0; color:#F8FAFC;">Tips for Better Results</h3>
+          <ul style="line-height:1.85; color:rgba(248,250,252,0.92);">
+            <li>Prefer full article text over very short headlines.</li>
+            <li>Avoid random characters or incomplete sentences.</li>
+            <li>Try multiple samples and compare confidence scores.</li>
+          </ul>
 
-        # Go to result page if possible
-        try:
-            st.switch_page("pages/3_Result.py")
-        except Exception:
-            st.success("Prediction completed. Open the Result page from the sidebar to view details.")
+          <div style="height:10px;"></div>
 
-st.markdown("</div>", unsafe_allow_html=True)
+          <h4 style="margin:10px 0 6px 0; color:#F8FAFC;">Interpretation</h4>
+          <div class="small-note">
+            The probabilities indicate model confidence, not factual certainty. Use credible sources to verify claims.
+          </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
