@@ -1,29 +1,21 @@
-# pages/2_Input.py
 import os
 import base64
-import streamlit as st
 import numpy as np
+import streamlit as st
 import torch
 
 from transformers import AutoTokenizer, AutoModelForSequenceClassification
 
-# -----------------------------
-# Page Config
-# -----------------------------
 st.set_page_config(page_title="Input | Fake News Detection", layout="wide")
 
 ASSETS_DIR = "assets"
 BG_PATH = os.path.join(ASSETS_DIR, "bg_input.jpg")
 
-MODEL_DIR = os.path.join("model")  # change if your folder name differs
-MODEL_NAME_DISPLAY = "roberta-base"
+MODEL_ID = "fmfahim6/fake-news-roberta"
 MAX_LEN = 256
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-# -----------------------------
-# Styling Helpers
-# -----------------------------
 def set_bg(image_path: str) -> None:
     if not os.path.exists(image_path):
         st.markdown(
@@ -59,7 +51,6 @@ def set_bg(image_path: str) -> None:
         unsafe_allow_html=True,
     )
 
-
 def inject_css() -> None:
     st.markdown(
         """
@@ -78,7 +69,7 @@ def inject_css() -> None:
         }
         .title {
             font-size: 38px;
-            font-weight: 850;
+            font-weight: 900;
             margin: 0 0 10px 0;
             color: #F8FAFC;
             text-shadow: 0 2px 14px rgba(0,0,0,0.55);
@@ -93,42 +84,27 @@ def inject_css() -> None:
             color: rgba(248,250,252,0.78);
             line-height: 1.6;
         }
-        .btn-row {
-            display:flex;
-            gap: 10px;
-            margin-top: 10px;
-            flex-wrap: wrap;
-        }
         </style>
         """,
         unsafe_allow_html=True,
     )
 
-
 set_bg(BG_PATH)
 inject_css()
 
-# -----------------------------
-# Model Loader (cached)
-# -----------------------------
+# Cache model + tokenizer so the app does not reload it every time
 @st.cache_resource
-def load_model_and_tokenizer(model_dir: str):
-    if not os.path.exists(model_dir):
-        raise FileNotFoundError(
-            f"Model folder not found: '{model_dir}'. "
-            f"Place your saved RoBERTa model inside: {model_dir}"
-        )
-    tokenizer = AutoTokenizer.from_pretrained(model_dir, use_fast=True)
-    model = AutoModelForSequenceClassification.from_pretrained(model_dir).to(DEVICE)
+def load_model_and_tokenizer(model_id: str):
+    tokenizer = AutoTokenizer.from_pretrained(model_id, use_fast=True)
+    model = AutoModelForSequenceClassification.from_pretrained(model_id).to(DEVICE)
     model.eval()
     return tokenizer, model
 
-
 @torch.no_grad()
 def predict_text(text: str):
-    tokenizer, model = load_model_and_tokenizer(MODEL_DIR)
-
+    tokenizer, model = load_model_and_tokenizer(MODEL_ID)
     text = "" if text is None else str(text).strip()
+
     enc = tokenizer(
         [text],
         padding=True,
@@ -141,34 +117,28 @@ def predict_text(text: str):
     logits = model(**enc).logits
     probs = torch.softmax(logits, dim=1)[0].detach().cpu().numpy()
 
-    # Class index: 0=FAKE, 1=REAL
-    pred = int(np.argmax(probs))
+    pred = int(np.argmax(probs))  # 0=FAKE, 1=REAL
     return pred, float(probs[0]), float(probs[1])
 
+left, right = st.columns([1.45, 1])
 
-# -----------------------------
-# UI
-# -----------------------------
-col_left, col_right = st.columns([1.45, 1])
-
-with col_left:
+with left:
     st.markdown('<div class="glass-card">', unsafe_allow_html=True)
     st.markdown('<div class="title">Input Text</div>', unsafe_allow_html=True)
+
     st.markdown(
         """
         <div class="subtitle">
-        Paste a headline or full news content. Then click <b>Predict</b>.
+        Paste a headline or full news article text and click <b>Predict</b>.
         </div>
         <div class="small-note">
-        Label mapping: FAKE → 0, REAL → 1. Model: RoBERTa-base.
+        Label mapping: FAKE → 0, REAL → 1
         </div>
         """,
         unsafe_allow_html=True,
     )
 
-    # Pre-fill from session state
     default_text = st.session_state.get("input_text", "")
-
     text = st.text_area(
         "News text",
         value=default_text,
@@ -176,28 +146,25 @@ with col_left:
         placeholder="Paste news headline or article here..."
     )
 
-    # Simple counters
-    words = len(text.split())
-    chars = len(text)
-    st.caption(f"Length: {words} words | {chars} characters")
+    st.caption(f"Words: {len(text.split())} | Characters: {len(text)}")
 
-    b1, b2, b3 = st.columns([1, 1, 1])
+    c1, c2, c3 = st.columns(3)
 
-    with b1:
+    with c1:
         predict_clicked = st.button("Predict", type="primary", use_container_width=True)
-
-    with b2:
+    with c2:
         example_clicked = st.button("Use Example", use_container_width=True)
-
-    with b3:
+    with c3:
         clear_clicked = st.button("Clear", use_container_width=True)
 
     if example_clicked:
         example = (
-            "WASHINGTON (Reuters) - The U.S. administration announced new measures on Monday, "
-            "aiming to strengthen policy enforcement and improve transparency, officials said."
+            "WASHINGTON (Reuters) - Officials announced new measures on Monday to improve transparency "
+            "and strengthen enforcement, according to a statement."
         )
         st.session_state["input_text"] = example
+        st.session_state["pred_label"] = None
+        st.session_state["probs"] = None
         st.session_state["last_error"] = ""
         st.rerun()
 
@@ -210,22 +177,21 @@ with col_left:
 
     if predict_clicked:
         st.session_state["input_text"] = text
-        st.session_state["model_name"] = MODEL_NAME_DISPLAY
+        st.session_state["model_id"] = MODEL_ID
         st.session_state["last_error"] = ""
 
         if len(text.strip()) < 20:
-            st.session_state["last_error"] = "Please enter at least 20 characters for a reliable prediction."
-            st.warning(st.session_state["last_error"])
+            st.warning("Please enter at least 20 characters for a reliable prediction.")
         else:
-            with st.spinner("Running RoBERTa inference..."):
+            with st.spinner("Running RoBERTa inference (Hugging Face Hub)..."):
                 try:
                     pred, p_fake, p_real = predict_text(text)
                     st.session_state["pred_label"] = pred
                     st.session_state["probs"] = {"FAKE": p_fake, "REAL": p_real}
-                    st.success("Prediction saved. Open the **Result** page from the sidebar.")
+                    st.success("Prediction saved. Now open the **Result** page from the sidebar.")
                 except Exception as e:
                     st.session_state["last_error"] = str(e)
-                    st.error("Prediction failed. Please verify model path and dependencies.")
+                    st.error("Prediction failed.")
                     st.code(str(e))
 
     if st.session_state.get("last_error"):
@@ -233,22 +199,18 @@ with col_left:
 
     st.markdown("</div>", unsafe_allow_html=True)
 
-with col_right:
+with right:
     st.markdown(
         """
         <div class="glass-card">
-          <h3 style="margin-top:0; color:#F8FAFC;">Tips for Better Results</h3>
+          <h3 style="margin-top:0; color:#F8FAFC;">Guidelines</h3>
           <ul style="line-height:1.85; color:rgba(248,250,252,0.92);">
-            <li>Prefer full article text over very short headlines.</li>
-            <li>Avoid random characters or incomplete sentences.</li>
-            <li>Try multiple samples and compare confidence scores.</li>
+            <li>Use complete text for best accuracy.</li>
+            <li>Short headlines may produce lower confidence.</li>
+            <li>Try multiple inputs to test the model behavior.</li>
           </ul>
-
-          <div style="height:10px;"></div>
-
-          <h4 style="margin:10px 0 6px 0; color:#F8FAFC;">Interpretation</h4>
           <div class="small-note">
-            The probabilities indicate model confidence, not factual certainty. Use credible sources to verify claims.
+            The model outputs probabilities, not verified truth. Always fact-check.
           </div>
         </div>
         """,
