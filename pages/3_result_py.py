@@ -1,20 +1,13 @@
-# pages/3_Result.py
 import os
 import base64
-import streamlit as st
 import numpy as np
+import streamlit as st
 
-# -----------------------------
-# Page Config
-# -----------------------------
 st.set_page_config(page_title="Result | Fake News Detection", layout="wide")
 
 ASSETS_DIR = "assets"
 BG_PATH = os.path.join(ASSETS_DIR, "bg_result.jpg")
 
-# -----------------------------
-# Styling Helpers
-# -----------------------------
 def set_bg(image_path: str) -> None:
     if not os.path.exists(image_path):
         st.markdown(
@@ -50,7 +43,6 @@ def set_bg(image_path: str) -> None:
         unsafe_allow_html=True,
     )
 
-
 def inject_css() -> None:
     st.markdown(
         """
@@ -69,7 +61,7 @@ def inject_css() -> None:
         }
         .title {
             font-size: 38px;
-            font-weight: 850;
+            font-weight: 900;
             margin: 0 0 10px 0;
             color: #F8FAFC;
             text-shadow: 0 2px 14px rgba(0,0,0,0.55);
@@ -91,7 +83,6 @@ def inject_css() -> None:
             background: rgba(34,197,94,0.16);
             border-color: rgba(34,197,94,0.30);
         }
-
         .prob-wrap {
             display: grid;
             grid-template-columns: 1fr 1fr;
@@ -127,7 +118,6 @@ def inject_css() -> None:
             background: rgba(56,189,248,0.95);
             border-radius: 999px;
         }
-
         .small-note {
             font-size: 13px;
             color: rgba(248,250,252,0.78);
@@ -137,7 +127,6 @@ def inject_css() -> None:
         """,
         unsafe_allow_html=True,
     )
-
 
 def render_probs(probs: dict) -> None:
     p_fake = float(np.clip(probs.get("FAKE", 0.0), 0.0, 1.0))
@@ -160,21 +149,14 @@ def render_probs(probs: dict) -> None:
     """
     st.markdown(html, unsafe_allow_html=True)
 
-
 set_bg(BG_PATH)
 inject_css()
 
-# -----------------------------
-# Read state
-# -----------------------------
 text = st.session_state.get("input_text", "")
 pred_label = st.session_state.get("pred_label", None)
 probs = st.session_state.get("probs", None)
-model_name = st.session_state.get("model_name", "roberta-base")
+model_id = st.session_state.get("model_id", "fmfahim6/fake-news-roberta")
 
-# -----------------------------
-# UI
-# -----------------------------
 left, right = st.columns([1.35, 1])
 
 with left:
@@ -185,20 +167,21 @@ with left:
         st.warning("No prediction found. Please go to the **Input** page and click **Predict** first.")
         st.markdown("</div>", unsafe_allow_html=True)
     else:
-        # Determine final label and confidence
-        if int(pred_label) == 0:
+        pred_label = int(pred_label)
+
+        if pred_label == 0:
             label = "FAKE"
             badge_class = "badge badge-fake"
-            confidence = probs.get("FAKE", 0.0)
+            conf = probs.get("FAKE", 0.0)
         else:
             label = "REAL"
             badge_class = "badge badge-real"
-            confidence = probs.get("REAL", 0.0)
+            conf = probs.get("REAL", 0.0)
 
         st.markdown(
             f"""
             <div class="{badge_class}">
-              Prediction: {label} &nbsp; | &nbsp; Confidence: {confidence*100:.2f}%
+              Prediction: {label} &nbsp; | &nbsp; Confidence: {conf*100:.2f}%
             </div>
             """,
             unsafe_allow_html=True,
@@ -207,7 +190,7 @@ with left:
         st.markdown(
             f"""
             <div class="small-note">
-            Model: <b>{model_name}</b> &nbsp; | &nbsp; Label mapping: FAKE → 0, REAL → 1
+            Model (HF Hub): <b>{model_id}</b> &nbsp; | &nbsp; Label mapping: FAKE → 0, REAL → 1
             </div>
             """,
             unsafe_allow_html=True,
@@ -227,14 +210,14 @@ with right:
     st.markdown(
         """
         <div class="glass-card">
-          <h3 style="margin-top:0; color:#F8FAFC;">How to Read This Output</h3>
+          <h3 style="margin-top:0; color:#F8FAFC;">Interpretation</h3>
           <ul style="line-height:1.85; color:rgba(248,250,252,0.92);">
             <li><b>Prediction</b> is the class with higher probability.</li>
-            <li><b>Confidence</b> is the model probability for the predicted class.</li>
-            <li>Probabilities reflect the model’s belief, not verified truth.</li>
+            <li><b>Confidence</b> is the predicted class probability.</li>
+            <li>Probabilities are model confidence, not verified truth.</li>
           </ul>
           <div class="small-note">
-            If you want, you can add Explainable AI (LIME / Integrated Gradients) under this page later.
+            For Explainable AI, you can add LIME / IG on this page as an optional toggle.
           </div>
         </div>
         """,
