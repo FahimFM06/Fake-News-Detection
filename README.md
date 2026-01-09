@@ -201,6 +201,6 @@ On the Result page, you get:
 
 ---
 
-## Project Structure
-Typical structure:
+## Run the Streamlit App
+[Typical structure:](https://fake-news-detection-7c9ygqy3olqkfqfgdzzuxb.streamlit.app/)
 
