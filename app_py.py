@@ -31,8 +31,8 @@ MAX_LEN = 256
 
 ASSETS_DIR = "assets"
 BG_INTRO = os.path.join(ASSETS_DIR, "bg_intro.png")    # optional
-BG_PRED  = os.path.join(ASSETS_DIR, "bg_input.jpg")    # optional
-BG_RES   = os.path.join(ASSETS_DIR, "bg_result.jpg")   # optional
+BG_PRED  = os.path.join(ASSETS_DIR, "bg_input.png")    # optional
+BG_RES   = os.path.join(ASSETS_DIR, "bg_result.png")   # optional
 
 
 # =========================
