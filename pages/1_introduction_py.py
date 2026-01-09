@@ -1,22 +1,14 @@
-# pages/1_Introduction.py
 import os
 import base64
 import streamlit as st
 
-# -----------------------------
-# Page Config
-# -----------------------------
 st.set_page_config(page_title="Introduction | Fake News Detection", layout="wide")
 
 ASSETS_DIR = "assets"
 BG_PATH = os.path.join(ASSETS_DIR, "bg_intro.jpg")
 
-# -----------------------------
-# Styling Helpers
-# -----------------------------
 def set_bg(image_path: str) -> None:
     if not os.path.exists(image_path):
-        # Fallback background (no image available)
         st.markdown(
             """
             <style>
@@ -50,12 +42,10 @@ def set_bg(image_path: str) -> None:
         unsafe_allow_html=True,
     )
 
-
 def inject_css() -> None:
     st.markdown(
         """
         <style>
-        /* Reduce top padding */
         .block-container { padding-top: 1.4rem; }
 
         .glass-card {
@@ -70,42 +60,15 @@ def inject_css() -> None:
         }
         .title {
             font-size: 44px;
-            font-weight: 850;
+            font-weight: 900;
             margin: 0 0 10px 0;
             color: #F8FAFC;
             text-shadow: 0 2px 14px rgba(0,0,0,0.55);
         }
         .subtitle {
-            font-size: 17px;
+            font-size: 16px;
             line-height: 1.75;
             color: rgba(248,250,252,0.92);
-        }
-        .kpi-row {
-            display: grid;
-            grid-template-columns: 1fr 1fr 1fr;
-            gap: 12px;
-            margin-top: 14px;
-        }
-        .kpi {
-            background: rgba(255,255,255,0.08);
-            border: 1px solid rgba(255,255,255,0.14);
-            border-radius: 14px;
-            padding: 14px 14px 12px 14px;
-        }
-        .kpi-label {
-            font-size: 13px;
-            color: rgba(248,250,252,0.85);
-            margin-bottom: 6px;
-        }
-        .kpi-value {
-            font-size: 22px;
-            font-weight: 850;
-            color: #F8FAFC;
-        }
-        .small-note {
-            font-size: 13px;
-            color: rgba(248,250,252,0.80);
-            line-height: 1.6;
         }
         .pill {
             display:inline-block;
@@ -118,86 +81,69 @@ def inject_css() -> None:
             margin-right: 8px;
             margin-top: 8px;
         }
+        .small-note {
+            font-size: 13px;
+            color: rgba(248,250,252,0.80);
+            line-height: 1.6;
+        }
         </style>
         """,
         unsafe_allow_html=True,
     )
 
-
 set_bg(BG_PATH)
 inject_css()
 
-# -----------------------------
-# Content
-# -----------------------------
+model_id = st.session_state.get("model_id", "fmfahim6/fake-news-roberta")
+
 left, right = st.columns([1.35, 1])
 
 with left:
     st.markdown('<div class="glass-card">', unsafe_allow_html=True)
     st.markdown('<div class="title">Fake News Detection</div>', unsafe_allow_html=True)
-
     st.markdown(
-        """
+        f"""
         <div class="subtitle">
-        This application classifies a news text as <b>FAKE</b> or <b>REAL</b> using a fine-tuned
-        <b>RoBERTa-base</b> transformer model.
+        This application classifies news text as <b>FAKE</b> or <b>REAL</b> using a fine-tuned
+        <b>RoBERTa-base</b> transformer model loaded from Hugging Face Hub.
         <br><br>
         <b>Label Mapping</b><br>
         <span class="pill">FAKE → 0</span>
         <span class="pill">REAL → 1</span>
         <br><br>
-        <b>Workflow</b>
+        <b>How to use</b>
         <ol>
-          <li>Go to <b>Input</b> page and paste a headline or full news text.</li>
-          <li>Click <b>Predict</b> to run the model inference.</li>
-          <li>Go to <b>Result</b> page to view prediction and confidence.</li>
+          <li>Go to <b>Input</b> page</li>
+          <li>Paste headline or full news article</li>
+          <li>Click <b>Predict</b></li>
+          <li>Open <b>Result</b> page to see output</li>
         </ol>
         </div>
         <div class="small-note">
-        Note: This is a research/demo system. Predictions may be incorrect; do not treat it as verified fact-checking.
+        Disclaimer: This is a research/demo system. Always verify claims using trusted sources.
         </div>
         """,
         unsafe_allow_html=True,
     )
-
     st.markdown("</div>", unsafe_allow_html=True)
 
 with right:
     st.markdown(
-        """
+        f"""
         <div class="glass-card">
-          <h3 style="margin-top:0; color:#F8FAFC;">Model Snapshot</h3>
-          <div class="kpi-row">
-            <div class="kpi">
-              <div class="kpi-label">Model</div>
-              <div class="kpi-value">RoBERTa-base</div>
-            </div>
-            <div class="kpi">
-              <div class="kpi-label">Task</div>
-              <div class="kpi-value">Binary NLP</div>
-            </div>
-            <div class="kpi">
-              <div class="kpi-label">Output</div>
-              <div class="kpi-value">FAKE / REAL</div>
-            </div>
+          <h3 style="margin-top:0; color:#F8FAFC;">Model Info</h3>
+          <div class="subtitle">
+            <b>Model ID:</b> {model_id}<br>
+            <b>Architecture:</b> RoBERTa-base<br>
+            <b>Task:</b> Binary text classification<br>
           </div>
-
-          <div style="height:12px;"></div>
-
-          <h4 style="margin:10px 0 6px 0; color:#F8FAFC;">What the Result Shows</h4>
-          <ul style="line-height:1.85; color:rgba(248,250,252,0.92); margin-top:6px;">
-            <li>Final predicted label (FAKE or REAL)</li>
-            <li>Confidence scores (probabilities)</li>
-            <li>Optional: XAI (LIME / IG) can be added later</li>
-          </ul>
-
+          <div style="height:10px;"></div>
           <div class="small-note">
-            For best results, paste complete text rather than only a very short headline.
+            Tip: Full text typically gives more reliable predictions than very short headlines.
           </div>
         </div>
         """,
         unsafe_allow_html=True,
     )
 
-st.write("")
-st.info("Use the sidebar to open **Input** and run a prediction.")
+st.info("Next: Open the **Input** page from the sidebar.")
